@@ -62,10 +62,8 @@ if [ -x "$BIN" ]; then
 	core_arch="$(cat "$ARCH_FILE" 2>/dev/null || true)"
 	[ -n "$core_arch" ] || core_arch="$core_arch_effective"
 fi
-if [ -s "$BACKUP_VERSION_FILE" ] && [ -s /etc/vohive/bin/vohive.bak ]; then
+if [ -s "$BACKUP_VERSION_FILE" ]; then
 	backup_version="$(cat "$BACKUP_VERSION_FILE" 2>/dev/null || true)"
-elif [ -s /etc/vohive/bin/vohive.bak ]; then
-	backup_version="版本未知"
 fi
 
 default_password=0

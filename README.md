@@ -33,6 +33,7 @@ https://github.com/iniwex5/vohive-release
 - 启动、停止、重启 VoHive procd 服务。
 - 通过 UCI 配置渲染 `/etc/vohive/config/config.yaml`。
 - 显示核心状态、服务状态、端口监听提示和最近日志。核心版本和架构来自安装脚本或 `vohive-core-*` 写入的 `/etc/vohive/bin/version` 与 `/etc/vohive/bin/arch`。
+- 核心回滚只保留上一个版本和架构元数据，回滚时重新下载旧版本 core，不在闪存中保存第二份完整二进制。
 
 ## 安装
 

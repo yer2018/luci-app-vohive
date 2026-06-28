@@ -28,3 +28,26 @@ github_repo_slug() {
 validate_github_repo() {
 	printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
 }
+
+resolve_asset_arch() {
+	local configured="$1"
+	local machine
+
+	case "$configured" in
+		'')
+			machine="$(uname -m)"
+			case "$machine" in
+				aarch64|arm64) printf 'arm64' ;;
+				x86_64|amd64) printf 'amd64' ;;
+				armv7l|armv7) printf 'armv7' ;;
+				*) return 1 ;;
+			esac
+			;;
+		arm64|amd64|armv7)
+			printf '%s' "$configured"
+			;;
+		*)
+			return 1
+			;;
+	esac
+}
