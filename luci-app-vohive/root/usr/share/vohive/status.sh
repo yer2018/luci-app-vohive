@@ -2,6 +2,7 @@
 
 BIN="/etc/vohive/bin/vohive"
 VERSION_FILE="/etc/vohive/bin/version"
+ARCH_FILE="/etc/vohive/bin/arch"
 BACKUP_VERSION_FILE="/etc/vohive/bin/version.bak"
 
 json_escape() {
@@ -17,6 +18,29 @@ uci_get() {
 	[ -n "$value" ] && printf '%s' "$value" || printf '%s' "$default"
 }
 
+resolve_asset_arch() {
+	local configured="$1"
+	local machine
+
+	case "$configured" in
+		'')
+			machine="$(uname -m)"
+			case "$machine" in
+				aarch64|arm64) printf 'arm64' ;;
+				x86_64|amd64) printf 'amd64' ;;
+				armv7l|armv7) printf 'armv7' ;;
+				*) printf 'unknown' ;;
+			esac
+			;;
+		arm64|amd64|armv7)
+			printf '%s' "$configured"
+			;;
+		*)
+			printf 'unknown'
+			;;
+	esac
+}
+
 is_running=0
 /etc/init.d/vohive running >/dev/null 2>&1 && is_running=1
 
@@ -24,14 +48,19 @@ enabled="$(uci_get enabled '0')"
 host="$(uci_get host '0.0.0.0')"
 port="$(uci_get port '7575')"
 data_path="$(uci_get data_path '/etc/vohive/data')"
+core_arch_config="$(uci_get core_arch '')"
+core_arch_effective="$(resolve_asset_arch "$core_arch_config")"
 
 core_installed=0
 core_version=""
+core_arch=""
 backup_version=""
 if [ -x "$BIN" ]; then
 	core_installed=1
 	core_version="$(cat "$VERSION_FILE" 2>/dev/null || true)"
 	[ -n "$core_version" ] || core_version="已安装，版本未知"
+	core_arch="$(cat "$ARCH_FILE" 2>/dev/null || true)"
+	[ -n "$core_arch" ] || core_arch="$core_arch_effective"
 fi
 if [ -s "$BACKUP_VERSION_FILE" ] && [ -s /etc/vohive/bin/vohive.bak ]; then
 	backup_version="$(cat "$BACKUP_VERSION_FILE" 2>/dev/null || true)"
@@ -90,6 +119,9 @@ printf '"running":%s,' "$is_running"
 printf '"enabled":%s,' "$enabled"
 printf '"core_installed":%s,' "$core_installed"
 printf '"core_version":"%s",' "$(json_escape "$core_version")"
+printf '"core_arch":"%s",' "$(json_escape "$core_arch")"
+printf '"core_arch_config":"%s",' "$(json_escape "$core_arch_config")"
+printf '"core_arch_effective":"%s",' "$(json_escape "$core_arch_effective")"
 printf '"backup_version":"%s",' "$(json_escape "$backup_version")"
 printf '"host":"%s",' "$(json_escape "$host")"
 printf '"port":"%s",' "$(json_escape "$port")"

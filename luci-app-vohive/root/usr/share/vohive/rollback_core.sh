@@ -8,6 +8,8 @@ BIN="/etc/vohive/bin/vohive"
 BACKUP="/etc/vohive/bin/vohive.bak"
 VERSION_FILE="/etc/vohive/bin/version"
 BACKUP_VERSION_FILE="/etc/vohive/bin/version.bak"
+ARCH_FILE="/etc/vohive/bin/arch"
+BACKUP_ARCH_FILE="/etc/vohive/bin/arch.bak"
 
 fail() {
 	printf '{"ok":false,"message":"%s"}\n' "$(json_escape "$*")"
@@ -25,6 +27,9 @@ chmod +x "$BIN"
 rollback_version="$(cat "$BACKUP_VERSION_FILE" 2>/dev/null || true)"
 [ -n "$rollback_version" ] || rollback_version="已安装，版本未知"
 printf '%s\n' "$rollback_version" > "$VERSION_FILE"
+rollback_arch="$(cat "$BACKUP_ARCH_FILE" 2>/dev/null || true)"
+[ -n "$rollback_arch" ] || rollback_arch="unknown"
+printf '%s\n' "$rollback_arch" > "$ARCH_FILE"
 
 if [ "$was_running" = "1" ]; then
 	/etc/init.d/vohive start || fail "Rolled back core, but service failed to start"

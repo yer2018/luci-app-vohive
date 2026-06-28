@@ -9,6 +9,8 @@ BIN="$BIN_DIR/vohive"
 BACKUP="$BIN_DIR/vohive.bak"
 VERSION_FILE="$BIN_DIR/version"
 BACKUP_VERSION_FILE="$BIN_DIR/version.bak"
+ARCH_FILE="$BIN_DIR/arch"
+BACKUP_ARCH_FILE="$BIN_DIR/arch.bak"
 DOWNLOAD_DIR="/tmp/vohive/download"
 
 fail() {
@@ -20,12 +22,12 @@ repo="$(github_repo_slug "$(uci_get release_repo 'https://github.com/iniwex5/voh
 version="${1:-}"
 [ -n "$version" ] || version="$(uci_get version 'latest')"
 [ -n "$version" ] || version="latest"
-core_arch="$(uci_get core_arch 'auto')"
+core_arch="$(uci_get core_arch '')"
 
 validate_github_repo "$repo" || fail "Invalid GitHub repository: $repo"
 
 case "$core_arch" in
-	auto|'')
+	'')
 		arch="$(uname -m)"
 		case "$arch" in
 			aarch64|arm64) asset_arch="arm64" ;;
@@ -74,11 +76,17 @@ if [ -x "$BIN" ]; then
 	else
 		printf '已安装，版本未知\n' > "$BACKUP_VERSION_FILE"
 	fi
+	if [ -s "$ARCH_FILE" ]; then
+		cp -f "$ARCH_FILE" "$BACKUP_ARCH_FILE"
+	else
+		printf 'unknown\n' > "$BACKUP_ARCH_FILE"
+	fi
 fi
 
 cp -f "$downloaded" "$BIN"
 chmod 0755 "$BIN"
 printf '%s\n' "$version" > "$VERSION_FILE"
+printf '%s\n' "$asset_arch" > "$ARCH_FILE"
 
 if [ "$was_running" = "1" ]; then
 	if ! /etc/init.d/vohive start >/tmp/vohive-start.log 2>&1; then

@@ -82,6 +82,10 @@ function pluginVersionLink(repo, version) {
 	return releaseLink(repo, version);
 }
 
+function coreArchLabel(arch) {
+	return arch && arch != 'unknown' ? 'linux_%s'.format(arch) : _('未知');
+}
+
 return view.extend({
 	logRefreshTimer: null,
 	currentLogs: '',
@@ -106,8 +110,10 @@ return view.extend({
 		var backup = status.backup_version || _('无');
 		var canUpdate = status.core_installed && releases.latest && status.core_version && status.core_version != releases.latest;
 		var repo = releases.repo || '';
+		var currentArch = status.core_installed ? coreArchLabel(status.core_arch || status.core_arch_effective) : _('未安装');
 		var rows = [
 			[ _('当前版本'), releaseLink(repo, current) ],
+			[ _('当前架构'), currentArch ],
 			[ _('最新版本'), releaseLink(repo, latest) ],
 			[ _('可回滚版本'), releaseLink(repo, backup) ],
 			[ _('Release 仓库'), repo ? E('a', { 'href': 'https://github.com/%s/releases'.format(repo), 'target': '_blank', 'rel': 'noreferrer' }, repo) : _('未知') ]
@@ -161,11 +167,14 @@ return view.extend({
 		};
 
 		o = s.option(form.ListValue, 'core_arch', _('核心架构'));
-		o.value('auto', _('自动识别'));
 		o.value('arm64', 'linux_arm64');
 		o.value('amd64', 'linux_amd64');
 		o.value('armv7', 'linux_armv7');
-		o.default = 'auto';
+		o.default = status.core_arch_effective || 'arm64';
+		o.cfgvalue = function(section_id) {
+			var value = uci.get('vohive', section_id, 'core_arch');
+			return value || status.core_arch_effective || 'arm64';
+		};
 
 		o = s.option(form.ListValue, 'version', _('指定版本'));
 		o.value('latest', releases.latest ? _('最新版本') + ' (' + releases.latest + ')' : _('最新版本'));
