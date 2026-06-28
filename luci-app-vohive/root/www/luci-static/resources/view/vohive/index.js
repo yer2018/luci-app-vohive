@@ -238,11 +238,12 @@ return view.extend({
 
 	renderStatus: function(status) {
 		var webUrl = 'http://%s:%s'.format(window.location.hostname, status.port || '7575');
+		var listenAddress = '%s:%s'.format(status.host || '0.0.0.0', status.port || '7575');
 		var rows = [
 			[ _('服务状态'), statusBadge(status.running) ],
 			[ _('开机启用'), status.enabled ? _('已启用') : _('未启用') ],
 			[ _('核心状态'), status.core_installed ? (status.core_version || _('已安装')) : _('未安装') ],
-			[ _('监听地址'), E('a', { 'href': webUrl, 'target': '_blank' }, '%s:%s'.format(status.host || '0.0.0.0', status.port || '7575')) ],
+			[ _('监听地址'), status.running ? E('a', { 'href': webUrl, 'target': '_blank' }, listenAddress) : listenAddress ],
 			[ _('端口状态'), status.port_status || _('未知') ],
 			[ _('根分区空间'), progressbar(status.root_used_kb, status.root_total_kb, status.root_percent) ],
 			[ _('数据目录空间'), progressbar(status.data_used_kb, status.data_total_kb, status.data_percent) ]
@@ -263,7 +264,7 @@ return view.extend({
 				'style': 'display:flex; align-items:center; justify-content:space-between; gap:1em; flex-wrap:wrap;'
 			}, [
 				E('h3', { 'style': 'margin-bottom:.75em;' }, _('运行状态')),
-				E('a', { 'class': 'btn cbi-button cbi-button-action', 'target': '_blank', 'href': webUrl }, _('打开 VoHive Web UI'))
+				status.running ? E('a', { 'class': 'btn cbi-button cbi-button-action', 'target': '_blank', 'href': webUrl }, _('打开 VoHive Web UI')) : ''
 			]),
 			table
 		].concat(warnings));
@@ -428,7 +429,7 @@ return view.extend({
 
 			return E('div', {}, [
 				E('h2', {}, _('VoHive')),
-				E('div', { 'class': 'cbi-map-descr' }, _('管理 VoHive 核心、服务和基础配置。')),
+				E('div', { 'class': 'cbi-map-descr' }, _('管理 VoHive 核心、服务和基础配置；支持短信、多卡、eSIM/eUICC、轻量代理与 Bot 远程控制。')),
 				tabs
 			]);
 		}.bind(this));
