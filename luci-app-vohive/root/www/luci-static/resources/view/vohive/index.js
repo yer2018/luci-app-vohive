@@ -160,6 +160,13 @@ return view.extend({
 			return /^(https?:\/\/github\.com\/)?[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/.test(value) || _('必须是 GitHub 仓库地址');
 		};
 
+		o = s.option(form.ListValue, 'core_arch', _('核心架构'));
+		o.value('auto', _('自动识别'));
+		o.value('arm64', 'linux_arm64');
+		o.value('amd64', 'linux_amd64');
+		o.value('armv7', 'linux_armv7');
+		o.default = 'auto';
+
 		o = s.option(form.ListValue, 'version', _('指定版本'));
 		o.value('latest', releases.latest ? _('最新版本') + ' (' + releases.latest + ')' : _('最新版本'));
 		(releases.versions || []).forEach(function(version) {

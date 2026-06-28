@@ -20,15 +20,26 @@ repo="$(github_repo_slug "$(uci_get release_repo 'https://github.com/iniwex5/voh
 version="${1:-}"
 [ -n "$version" ] || version="$(uci_get version 'latest')"
 [ -n "$version" ] || version="latest"
+core_arch="$(uci_get core_arch 'auto')"
 
 validate_github_repo "$repo" || fail "Invalid GitHub repository: $repo"
 
-arch="$(uname -m)"
-case "$arch" in
-	aarch64|arm64) asset_arch="arm64" ;;
-	x86_64|amd64) asset_arch="amd64" ;;
-	armv7l|armv7) asset_arch="armv7" ;;
-	*) fail "Unsupported architecture: $arch" ;;
+case "$core_arch" in
+	auto|'')
+		arch="$(uname -m)"
+		case "$arch" in
+			aarch64|arm64) asset_arch="arm64" ;;
+			x86_64|amd64) asset_arch="amd64" ;;
+			armv7l|armv7) asset_arch="armv7" ;;
+			*) fail "Unsupported architecture: $arch" ;;
+		esac
+		;;
+	arm64|amd64|armv7)
+		asset_arch="$core_arch"
+		;;
+	*)
+		fail "Unsupported configured architecture: $core_arch"
+		;;
 esac
 
 if [ "$version" = "latest" ] || [ "$version" = "stable" ]; then
