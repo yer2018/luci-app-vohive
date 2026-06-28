@@ -74,7 +74,7 @@ return view.extend({
 		]);
 	},
 
-	renderCoreSummary: function(status, releases) {
+	renderCoreSummary: function(status, releases, refreshHandler) {
 		var current = status.core_installed ? (status.core_version || _('已安装，版本未知')) : _('未安装');
 		var latest = releases.latest || _('未知');
 		var backup = status.backup_version || _('无');
@@ -101,7 +101,15 @@ return view.extend({
 
 		var nodes = [
 			E('div', { 'class': 'cbi-section' }, [
-				E('h3', {}, _('核心状态')),
+				E('div', {
+					'style': 'display:flex; align-items:center; justify-content:space-between; gap:1em; flex-wrap:wrap;'
+				}, [
+					E('h3', { 'style': 'margin-bottom:.75em;' }, _('核心状态')),
+					E('button', {
+						'class': 'btn cbi-button cbi-button-reload',
+						'click': refreshHandler
+					}, _('检测更新'))
+				]),
 				table
 			])
 		];
@@ -112,7 +120,7 @@ return view.extend({
 		return E('div', {}, nodes);
 	},
 
-	renderCoreMap: function(status, releases) {
+	renderCoreMap: function(status, releases, refreshHandler) {
 		var m = new form.Map('vohive');
 		var s, o;
 
@@ -149,14 +157,14 @@ return view.extend({
 
 		return m.render().then(function(mapEl) {
 			return E('div', {}, [
-				this.renderCoreSummary(status, releases),
+				this.renderCoreSummary(status, releases, refreshHandler),
 				mapEl
 			]);
 		}.bind(this));
 	},
 
-	loadCorePane: function(corePane, status) {
-		if (corePane.getAttribute('data-loaded') === 'true' || corePane.getAttribute('data-loading') === 'true')
+	loadCorePane: function(corePane, status, force) {
+		if (!force && (corePane.getAttribute('data-loaded') === 'true' || corePane.getAttribute('data-loading') === 'true'))
 			return;
 
 		corePane.setAttribute('data-loading', 'true');
@@ -166,7 +174,11 @@ return view.extend({
 			.catch(function() { return '{}'; })
 			.then(function(text) {
 				var releases = parseJson(text);
-				return this.renderCoreMap(status, releases).then(function(coreEl) {
+				var refreshHandler = ui.createHandlerFn(this, function() {
+					return this.loadCorePane(corePane, status, true);
+				});
+
+				return this.renderCoreMap(status, releases, refreshHandler).then(function(coreEl) {
 					corePane.setAttribute('data-loaded', 'true');
 					corePane.removeAttribute('data-loading');
 					dom.content(corePane, coreEl);
@@ -242,7 +254,7 @@ return view.extend({
 
 		var warnings = [];
 		if (status.default_password)
-			warnings.push(E('div', { 'class': 'alert-message warning' }, _('检测到默认 Web 密码 admin/admin，请尽快修改。')));
+			warnings.push(E('div', { 'class': 'alert-message warning' }, _('LuCI 配置中仍使用默认 Web 密码 admin/admin，请在“基础配置”中修改。')));
 		if (!status.core_installed)
 			warnings.push(E('div', { 'class': 'alert-message warning' }, _('VoHive 核心尚未安装。')));
 
