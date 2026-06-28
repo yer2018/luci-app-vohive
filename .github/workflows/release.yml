@@ -37,7 +37,7 @@ jobs:
           printf 'LUCI_APP_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
 
       - name: Install packaging tools
-        run: sudo apt-get update && sudo apt-get install -y binutils file
+        run: sudo apt-get update && sudo apt-get install -y file
 
       - name: Prepare package roots
         run: |
@@ -122,11 +122,15 @@ jobs:
             printf '2.0\n' > "$work/debian-binary"
             tar --numeric-owner --owner=0 --group=0 -czf "$work/control.tar.gz" -C "$work/control" .
             tar --numeric-owner --owner=0 --group=0 -czf "$work/data.tar.gz" -C "$work/data" .
-            (cd "$work" && ar r "../../$out" debian-binary control.tar.gz data.tar.gz)
+            tar --numeric-owner --owner=0 --group=0 -czf "$out" -C "$work" ./debian-binary ./data.tar.gz ./control.tar.gz
           }
 
           build_ipk luci-app-vohive "${LUCI_APP_VERSION}-1" all
           build_ipk vohive-core "${VOHIVE_VERSION}-1" "${OPENWRT_ARCH}"
+          for ipk in artifacts/*.ipk; do
+            file "$ipk"
+            tar -tzf "$ipk" | sed -n '1,3p'
+          done
           (cd artifacts && sha256sum *.ipk > sha256sums.txt)
 
       - name: Upload artifacts
