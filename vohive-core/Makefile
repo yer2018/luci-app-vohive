@@ -1,7 +1,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=vohive-core
-PKG_VERSION:=$(if $(VOHIVE_VERSION),$(VOHIVE_VERSION),v1.4.3)
+VOHIVE_VERSION?=v1.4.3
+PKG_VERSION:=$(patsubst v%,%,$(VOHIVE_VERSION))
 PKG_RELEASE:=1
 PKG_LICENSE:=Proprietary
 PKG_MAINTAINER:=VoHive
@@ -51,7 +52,7 @@ endef
 define Package/vohive-core/install
 	$(INSTALL_DIR) $(1)/etc/vohive/bin
 	$(INSTALL_BIN) ./files/vohive-$(2) $(1)/etc/vohive/bin/vohive
-	echo "$(PKG_VERSION)" > $(1)/etc/vohive/bin/version
+	echo "$(VOHIVE_VERSION)" > $(1)/etc/vohive/bin/version
 	echo "$(2)" > $(1)/etc/vohive/bin/arch
 endef
 
