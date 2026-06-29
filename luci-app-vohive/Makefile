@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-vohive
-PKG_VERSION?=0.1.12
+PKG_VERSION?=0.1.13
 PKG_RELEASE:=1
 PKG_LICENSE:=MIT
 PKG_MAINTAINER:=VoHive
@@ -15,6 +15,7 @@ define Package/luci-app-vohive
   SUBMENU:=3. Applications
   TITLE:=LuCI support for VoHive
   DEPENDS:=+luci-base +rpcd +rpcd-mod-file +curl +ca-bundle +jsonfilter
+  PKGARCH:=all
 endef
 
 define Package/luci-app-vohive/description

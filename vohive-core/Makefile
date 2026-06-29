@@ -14,6 +14,7 @@ define Package/vohive-core/Default
   SECTION:=utils
   CATEGORY:=Utilities
   DEPENDS:=
+  PKGARCH:=all
 endef
 
 define Package/vohive-core-arm64

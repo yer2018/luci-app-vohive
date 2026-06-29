@@ -36,6 +36,7 @@ tag="$(printf '%s' "$json" | jsonfilter -e '@.tag_name' 2>/dev/null || true)"
 tag_norm="${tag#v}"
 
 asset=""
+asset_any=""
 i=0
 while :; do
 	name="$(printf '%s' "$json" | jsonfilter -e "@.assets[$i].name" 2>/dev/null || true)"
@@ -45,11 +46,15 @@ while :; do
 			asset="$name"
 			break
 			;;
+		luci-app-vohive_*_*.ipk)
+			[ -n "$asset_any" ] || asset_any="$name"
+			;;
 	esac
 	i=$((i + 1))
 done
 
-[ -n "$asset" ] || fail "最新 Release 未找到 luci-app-vohive_*_all.ipk"
+[ -n "$asset" ] || asset="$asset_any"
+[ -n "$asset" ] || fail "最新 Release 未找到 luci-app-vohive_*.ipk"
 
 base="https://github.com/$PLUGIN_REPO/releases/download/$tag"
 ipk="$DOWNLOAD_DIR/$asset"
