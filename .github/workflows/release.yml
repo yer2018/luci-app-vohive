@@ -73,15 +73,17 @@ jobs:
           path: release-notes.md
 
   build:
-    name: Build ${{ matrix.build_arch }}
+    name: Build ${{ matrix.label }}
     needs: prepare
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        build_arch:
-          - x64_ipk
-          - x64_apk
+        include:
+          - id: openwrt_24_ipk
+            label: OpenWrt 24.10 IPK
+          - id: openwrt_25_apk
+            label: OpenWrt 25.12 APK
 
     steps:
       - name: Install packages
@@ -100,10 +102,10 @@ jobs:
       - name: Import SDK environment
         id: sdk_env
         run: |
-          cat "source/.github/workflows/${{ matrix.build_arch }}.env" >> "$GITHUB_ENV"
+          cat "source/.github/workflows/${{ matrix.id }}.env" >> "$GITHUB_ENV"
           while IFS='=' read -r key value; do
             echo "${key,,}=${value}" >> "$GITHUB_OUTPUT"
-          done < "source/.github/workflows/${{ matrix.build_arch }}.env"
+          done < "source/.github/workflows/${{ matrix.id }}.env"
 
       - name: Prepare VoHive core files
         run: |
@@ -171,7 +173,7 @@ jobs:
           done
 
           package_dir="$(pwd)/bin/packages/${SDK_ARCH}/vohive"
-          dist_dir="$(pwd)/../dist/${{ matrix.build_arch }}"
+          dist_dir="$(pwd)/../dist/${{ matrix.id }}"
           mkdir -p "$dist_dir"
 
           shopt -s nullglob
@@ -189,7 +191,8 @@ jobs:
             echo "Tag: ${{ needs.prepare.outputs.tag_name }}"
             echo "LuCI version: ${{ needs.prepare.outputs.luci_version }}"
             echo "VoHive core: ${VOHIVE_VERSION}"
-            echo "Build: ${{ matrix.build_arch }}"
+            echo "Build: ${{ matrix.label }}"
+            echo "Build ID: ${{ matrix.id }}"
             echo "SDK: ${SDK_NAME}"
             echo "Package format: ${PACKAGE_EXT}"
             echo "Package count: ${#package_files[@]}"
@@ -198,8 +201,8 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vohive-${{ matrix.build_arch }}
-          path: dist/${{ matrix.build_arch }}
+          name: vohive-${{ matrix.id }}
+          path: dist/${{ matrix.id }}
           retention-days: 7
 
   release:
