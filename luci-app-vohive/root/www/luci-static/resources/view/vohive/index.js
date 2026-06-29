@@ -23,17 +23,6 @@ function notifyResult(text) {
 		ui.addNotification(null, E('p', {}, result.message || _('操作完成')), 'info');
 }
 
-function notifyResultAndReload(text) {
-	var result = parseJson(text);
-	if (result.ok === false) {
-		ui.addNotification(null, E('p', {}, result.message || _('操作失败')), 'danger');
-		return;
-	}
-
-	ui.addNotification(null, E('p', {}, result.message || _('操作完成')), 'info');
-	window.setTimeout(function() { location.reload(); }, 1500);
-}
-
 function resultDetails(result) {
 	if (!result || !result.output)
 		return '';
@@ -138,10 +127,60 @@ function loadingText(text) {
 	return E('em', { 'class': 'spinning' }, text || _('正在加载...'));
 }
 
+function formatBytes(bytes) {
+	var value = parseInt(bytes) || 0;
+
+	if (value >= 1024 * 1024)
+		return '%1024.2mB'.format(value);
+
+	return '%d KiB'.format(Math.max(0, Math.round(value / 1024)));
+}
+
+function formatSpeed(bytes) {
+	var value = parseInt(bytes) || 0;
+
+	if (value <= 0)
+		return '0 KiB/s';
+
+	if (value >= 1024 * 1024)
+		return '%1024.2mB/s'.format(value);
+
+	return '%d KiB/s'.format(Math.max(1, Math.round(value / 1024)));
+}
+
+function taskTitle(type) {
+	switch (type) {
+	case 'install_core':
+		return _('安装/更新 VoHive 核心');
+	case 'rollback_core':
+		return _('回滚 VoHive 核心');
+	case 'update_plugin':
+		return _('更新 LuCI 插件');
+	default:
+		return _('更新任务');
+	}
+}
+
+function taskProgressbar(status) {
+	var percent = status.state == 'completed' ? 100 : Math.max(0, Math.min(100, parseInt(status.percent) || 0));
+
+	return E('div', {
+		'class': 'cbi-progressbar',
+		'style': 'margin:.75em 0;',
+		'title': '%d%%'.format(percent)
+	}, E('div', { 'style': 'width:%.2f%%'.format(percent) }));
+}
+
 return view.extend({
 	logRefreshTimer: null,
 	currentLogs: '',
 	statusNode: null,
+	taskTimer: null,
+	taskModalBody: null,
+	activeTaskId: null,
+	activeTaskType: null,
+	taskCompletedHandled: false,
+	corePane: null,
 
 	handleSaveApply: function(ev, mode) {
 		return this.super('handleSaveApply', [ ev, mode ]).then(function() {
@@ -155,6 +194,172 @@ return view.extend({
 			fs.exec_direct('/usr/share/vohive/status.sh', []).catch(function() { return '{}'; }),
 			fs.exec_direct('/usr/share/vohive/logs.sh', [ '100' ]).catch(function() { return ''; })
 		]);
+	},
+
+	startTask: function(type, args) {
+		return fs.exec_direct('/usr/share/vohive/task_start.sh', [ type ].concat(args || []))
+			.then(function(text) {
+				var result = parseJson(text);
+				if (result.ok === false || !result.id) {
+					ui.addNotification(null, E('p', {}, result.message || _('任务启动失败')), 'danger');
+					return;
+				}
+
+				this.showTaskDialog(result.id, type);
+			}.bind(this))
+			.catch(function(e) {
+				ui.addNotification(null, E('p', {}, e.message || String(e)), 'danger');
+			});
+	},
+
+	restoreRunningTask: function() {
+		return fs.exec_direct('/usr/share/vohive/task_status.sh', [])
+			.then(function(text) {
+				var status = parseJson(text);
+				if (status && (status.state == 'running' || status.state == 'starting') && status.id)
+					this.showTaskDialog(status.id, status.type, status);
+			}.bind(this))
+			.catch(function() {});
+	},
+
+	showTaskDialog: function(id, type, initialStatus) {
+		this.activeTaskId = id;
+		this.activeTaskType = type || (initialStatus && initialStatus.type) || 'task';
+		this.taskCompletedHandled = false;
+		this.taskModalBody = E('div', {});
+
+		ui.showModal(taskTitle(this.activeTaskType), [ this.taskModalBody ]);
+		if (initialStatus)
+			this.updateTaskDialog(initialStatus);
+
+		this.pollTaskStatus();
+		if (this.taskTimer)
+			window.clearInterval(this.taskTimer);
+		this.taskTimer = window.setInterval(this.pollTaskStatus.bind(this), 1000);
+	},
+
+	pollTaskStatus: function() {
+		if (!this.activeTaskId)
+			return Promise.resolve();
+
+		return fs.exec_direct('/usr/share/vohive/task_status.sh', [ this.activeTaskId ])
+			.then(function(text) {
+				var status = parseJson(text);
+				if (status.ok === false) {
+					ui.addNotification(null, E('p', {}, status.message || _('任务状态读取失败')), 'danger');
+					return;
+				}
+
+				this.updateTaskDialog(status);
+				if (status.state == 'completed' || status.state == 'failed' || status.state == 'canceled')
+					this.finishTaskPolling(status);
+			}.bind(this))
+			.catch(function(e) {
+				this.updateTaskDialog({ state: 'failed', message: e.message || String(e), log: [] });
+				this.finishTaskPolling({ state: 'failed' });
+			}.bind(this));
+	},
+
+	cancelTask: function() {
+		if (!this.activeTaskId)
+			return Promise.resolve();
+
+		return fs.exec_direct('/usr/share/vohive/task_cancel.sh', [ this.activeTaskId ])
+			.catch(function(e) {
+				ui.addNotification(null, E('p', {}, e.message || String(e)), 'danger');
+			});
+	},
+
+	finishTaskPolling: function(status) {
+		if (this.taskTimer) {
+			window.clearInterval(this.taskTimer);
+			this.taskTimer = null;
+		}
+
+		if (this.taskCompletedHandled)
+			return;
+
+		this.taskCompletedHandled = true;
+		if (status.state == 'completed') {
+			if (status.type == 'update_plugin') {
+				window.setTimeout(function() { location.reload(); }, 3000);
+			} else {
+				this.refreshAfterTask(status);
+			}
+		}
+	},
+
+	refreshAfterTask: function(status) {
+		return this.refreshStatus().then(function(freshStatus) {
+			if (this.corePane && (status.type == 'install_core' || status.type == 'rollback_core')) {
+				this.corePane.removeAttribute('data-loaded');
+				this.corePane.removeAttribute('data-loading');
+				return this.loadCorePane(this.corePane, freshStatus || {}, true);
+			}
+		}.bind(this));
+	},
+
+	updateTaskDialog: function(status) {
+		if (!this.taskModalBody)
+			return;
+
+		var state = status.state || 'running';
+		var message = status.message || _('正在执行任务');
+		var terminal = state == 'completed' || state == 'failed' || state == 'canceled';
+		var total = parseInt(status.total) || 0;
+		var downloaded = parseInt(status.downloaded) || 0;
+		var percent = state == 'completed' ? 100 : (parseInt(status.percent) || 0);
+		var hasDownloadStats = total > 0 || downloaded > 0 || status.file;
+		var stats = terminal && !hasDownloadStats ? '' : (total > 0
+			? '%s / %s · %s · %d%%'.format(formatBytes(downloaded), formatBytes(total), formatSpeed(status.speed_bps), percent)
+			: '%s · %s'.format(formatBytes(downloaded), formatSpeed(status.speed_bps)));
+		var logLines = status.log || [];
+		var success = state == 'completed';
+		var pluginDone = success && status.type == 'update_plugin';
+
+		dom.content(this.taskModalBody, E('div', { 'style': 'min-width:min(620px, 86vw);' }, [
+			E('div', {
+				'class': 'alert-message %s'.format(success ? 'success' : (state == 'failed' || state == 'canceled' ? 'warning' : 'info'))
+			}, pluginDone ? _('LuCI 插件已更新，3 秒后刷新页面。') : message),
+			taskProgressbar(status),
+			E('div', { 'style': 'display:flex; gap:1em; flex-wrap:wrap; margin-bottom:1em;' }, [
+				E('strong', {}, status.stage || state),
+				E('span', {}, status.file || ''),
+				E('span', {}, stats)
+			]),
+			E('pre', {
+				'style': [
+					'white-space: pre-wrap',
+					'max-height: 240px',
+					'overflow: auto',
+					'margin: 0 0 1em 0',
+					'padding: 1em',
+					'border: 1px solid var(--border-color-medium)',
+					'border-radius: 6px',
+					'background: var(--background-color-low)',
+					'font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+					'font-size: 12px'
+				].join(';')
+			}, logLines.length ? logLines.join('\n') : _('暂无日志')),
+			E('div', { 'class': 'right' }, [
+				!terminal && status.cancellable ? E('button', {
+					'class': 'btn cbi-button cbi-button-reset',
+					'click': ui.createHandlerFn(this, this.cancelTask)
+				}, _('取消下载')) : '',
+				' ',
+				pluginDone ? E('button', {
+					'class': 'btn cbi-button cbi-button-action',
+					'click': function() { location.reload(); }
+				}, _('立即刷新')) : E('button', {
+					'class': 'btn cbi-button cbi-button-neutral',
+					'click': ui.createHandlerFn(this, function() {
+						ui.hideModal();
+						if (terminal && success)
+							return this.refreshAfterTask(status);
+					})
+				}, terminal ? _('完成') : _('关闭'))
+			])
+		]));
 	},
 
 	renderCoreSummary: function(status, releases, refreshHandler) {
@@ -242,16 +447,18 @@ return view.extend({
 		o = s.option(form.Button, '_install_core', _('安装/更新核心'));
 		o.inputstyle = 'apply';
 		o.onclick = ui.createHandlerFn(this, function() {
-			return saveApplyThen(m, function() {
+			return m.save().then(function() {
 				var version = uci.get('vohive', 'main', 'version') || 'latest';
-				return runScript('/usr/share/vohive/install_core.sh', [ version ]);
-			});
+				var repo = uci.get('vohive', 'main', 'release_repo') || 'https://github.com/iniwex5/vohive-release';
+				var arch = uci.get('vohive', 'main', 'core_arch') || '';
+				return this.startTask('install_core', [ version, repo, arch ]);
+			}.bind(this));
 		});
 
 		o = s.option(form.Button, '_rollback_core', status.backup_version ? _('回滚核心') + ' (' + status.backup_version + ')' : _('回滚核心'));
 		o.inputstyle = 'reset';
 		o.onclick = ui.createHandlerFn(this, function() {
-			return runScript('/usr/share/vohive/rollback_core.sh', []);
+			return this.startTask('rollback_core', []);
 		});
 
 		return m.render().then(function(mapEl) {
@@ -342,11 +549,7 @@ return view.extend({
 					'class': 'btn cbi-button cbi-button-action',
 					'disabled': plugin.has_update ? null : true,
 					'click': ui.createHandlerFn(this, function() {
-						return fs.exec_direct('/usr/share/vohive/update_plugin.sh', [])
-							.then(notifyResultAndReload)
-							.catch(function(e) {
-								ui.addNotification(null, E('p', {}, e.message || String(e)), 'danger');
-							});
+						return this.startTask('update_plugin', []);
 					})
 				}, _('更新 LuCI 插件')),
 				plugin.loading ? E('div', { 'style': 'margin-top:1em;' }, loadingText(_('正在加载最近版本...'))) : '',
@@ -648,6 +851,7 @@ return view.extend({
 			.then(function(text) {
 				var status = parseJson(text);
 				this.updateStatusNode(status);
+				return status;
 			}.bind(this));
 	},
 
@@ -793,6 +997,7 @@ return view.extend({
 			var corePane = E('div', { 'data-tab': 'core', 'data-tab-title': _('核心管理') }, [
 				E('div', { 'class': 'cbi-section' }, E('em', {}, _('点击核心管理后加载版本列表。')))
 			]);
+			this.corePane = corePane;
 
 			corePane.addEventListener('cbi-tab-active', function() {
 				this.loadCorePane(corePane, status);
@@ -829,6 +1034,7 @@ return view.extend({
 			var tabs = E('div', {}, panes);
 
 			ui.tabs.initTabGroup(panes.childNodes);
+			window.setTimeout(this.restoreRunningTask.bind(this), 0);
 
 			return E('div', {}, [
 				E('h2', {}, _('VoHive')),

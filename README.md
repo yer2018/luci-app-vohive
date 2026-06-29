@@ -18,6 +18,7 @@ VoHive 的 OpenWrt / ImmortalWrt LuCI 管理插件。
 /etc/vohive/data
 /tmp/vohive/logs
 /tmp/vohive/download
+/tmp/vohive/tasks
 ```
 
 默认 Release 仓库地址：
@@ -30,6 +31,7 @@ https://github.com/iniwex5/vohive-release
 
 - 在 `服务 -> VoHive` 管理核心安装、更新、回滚。
 - 核心管理页会从 GitHub Release 列出最近版本，显示当前版本和最新版本。
+- 核心安装、核心回滚和 LuCI 插件更新使用任务弹窗显示下载进度、已下载大小、总大小和下载速度。
 - 启动、停止、重启 VoHive procd 服务。
 - 通过 UCI 配置渲染 `/etc/vohive/config/config.yaml`。
 - 显示核心状态、服务状态、端口监听提示和最近日志。核心版本和架构来自安装脚本或 `vohive-core-*` 写入的 `/etc/vohive/bin/version` 与 `/etc/vohive/bin/arch`。
