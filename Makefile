@@ -1,4 +1,4 @@
-ROUTER ?= 192.168.6.1
+ROUTER ?= 10.10.10.100
 SSH ?= ssh
 SCP ?= scp
 REMOTE ?= root@$(ROUTER)
