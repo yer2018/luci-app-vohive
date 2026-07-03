@@ -6,7 +6,7 @@ on:
       vohive_version:
         description: VoHive release tag
         required: true
-        default: v1.5.0
+        default: v1.5.5
   push:
     tags:
       - 'v*'
